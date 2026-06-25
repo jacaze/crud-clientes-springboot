@@ -1,6 +1,8 @@
 package com.example.crud_banco_springboot.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import org.hibernate.validator.constraints.br.CPF;
 
 @Entity
 @Table(name = "tb_cliente")
@@ -10,9 +12,16 @@ public class Cliente {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotBlank(message = "O nome do cliente não pode estar em branco")
     private String nome;
+
+    @NotBlank(message = "O CPF é obrigatório")
+    @CPF(message = "O CPF informado é inválido")
     private String cpf;
+
+    @NotBlank(message = "O telefone é obrigatório")
     private String telefone;
+
     @OneToOne(cascade = CascadeType.ALL) // Adicione esta linha!
     @JoinColumn(name = "endereco_id", referencedColumnName = "id") // E esta!
     private Endereco endereco;
