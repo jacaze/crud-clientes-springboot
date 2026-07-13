@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import org.hibernate.validator.constraints.br.CPF;
 
+import java.util.List;
+
 @Entity
 @Table(name = "tb_cliente")
 public class Cliente {
@@ -25,6 +27,9 @@ public class Cliente {
     @OneToOne(cascade = CascadeType.ALL) // Adicione esta linha!
     @JoinColumn(name = "endereco_id", referencedColumnName = "id") // E esta!
     private Endereco endereco;
+
+    @OneToMany(mappedBy = "cliente", cascade = CascadeType.REMOVE, orphanRemoval = true)
+    private List<ContaBancaria> contas;
 
     // Construtor padrão
     public Cliente() {
@@ -52,4 +57,7 @@ public class Cliente {
 
     public Endereco getEndereco() {return endereco;}
     public void setEndereco(Endereco endereco) {this.endereco = endereco;}
+
+    public List<ContaBancaria> getContas() {return contas;}
+    public void setContas(List<ContaBancaria> contas) {this.contas = contas;}
 }

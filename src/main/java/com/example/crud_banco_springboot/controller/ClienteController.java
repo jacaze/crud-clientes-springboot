@@ -78,4 +78,20 @@ public class ClienteController {
 
         return ResponseEntity.ok(clienteSalvo);
     }
+
+    //Rota de exclusão
+    @DeleteMapping ("/{id}")
+    public ResponseEntity<?> deletarCliente (@PathVariable Long id){
+        //Verificar se o cliente existe
+        Optional<Cliente> clienteOptional = repository.findById(id);
+
+        if(clienteOptional.isEmpty()){
+            return ResponseEntity.status(404).body("Erro: Cliente com ID: "+id+" não possui cadastro no banco");
+        }
+
+        //Deleta o cliente
+        repository.deleteById(id);
+
+        return ResponseEntity.ok().body("Cliente, endereço e contas báncarias excluidos com sucesso");
+    }
 }
