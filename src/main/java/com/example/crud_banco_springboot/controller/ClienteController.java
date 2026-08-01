@@ -24,10 +24,21 @@ public class ClienteController {
         return repository.save(cliente);
     }
 
-    // Rota para LISTAR todos os clientes
-    @GetMapping
-    public List<Cliente> listarTodos() {
-        return repository.findAll();
+    // Rota para LISTAR todos os clientes ou buscar por algum especifico
+    @GetMapping({"","/{id}"})
+    public ResponseEntity<?> listarOuBuscarPorId(@PathVariable (required = false) Long id) {
+
+        if (id == null){
+            return ResponseEntity.ok(repository.findAll());
+        }
+
+        Optional<Cliente> clienteOptional = repository.findById(id);
+
+        if (clienteOptional.isEmpty()){
+            return ResponseEntity.status(404).body("Cliente não encontrado");
+        }
+
+        return ResponseEntity.ok(clienteOptional.get());
     }
 
     // Rota de atualização

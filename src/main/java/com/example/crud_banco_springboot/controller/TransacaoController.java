@@ -5,6 +5,7 @@ import com.example.crud_banco_springboot.model.TipoTransacao;
 import com.example.crud_banco_springboot.model.Transacao;
 import com.example.crud_banco_springboot.repository.ContaBancariaRepository;
 import com.example.crud_banco_springboot.repository.TransacaoRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -13,6 +14,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 @RestController
@@ -28,6 +30,17 @@ public class TransacaoController {
     @GetMapping
     public List<Transacao> listarTodas(){
         return transacaoRepository.findAll();
+    }
+
+    @GetMapping("/conta/{id}")
+    public ResponseEntity<?> listarContaPorId(@PathVariable Long id){
+       //Verificar se a conta existe
+        if (!contaBancariaRepository.existsById(id)){
+            return ResponseEntity.status(404).body("Conta não encontrada");
+        }
+
+        List<Transacao> extrato = transacaoRepository.findByContaId(id);
+        return ResponseEntity.ok(extrato);
     }
 
     @PostMapping("/deposito/{id}")
@@ -103,5 +116,67 @@ public class TransacaoController {
 
         transacaoRepository.save(transacao);
         return ResponseEntity.ok(conta);
+    }
+
+    @PostMapping("/transferencia")
+    @Transactional
+    public  ResponseEntity<?> transferir(@RequestBody Map<String, Object> payload){
+        //Extraindo os dados do payload
+        Long contaOrigemId = ((Number) payload.get("contaOrigemId")).longValue();
+        Long contaDestinoId = ((Number)payload.get("contaDestinoId")).longValue();
+        BigDecimal valor = new BigDecimal(payload.get("valor").toString());
+
+        //Validar de origem e destino são iguais
+        if (contaOrigemId.equals(contaDestinoId)){
+            return ResponseEntity.status(400).body("A conta de origem não pode ser a mesma que a de destino");
+        }
+
+        //Buscar as duas contas no banco de dados
+        Optional<ContaBancaria> origemOptional = contaBancariaRepository.findById(contaOrigemId);
+        Optional<ContaBancaria> destinoOptional = contaBancariaRepository.findById(contaDestinoId);
+
+        if(origemOptional.isEmpty()){
+            return ResponseEntity.status(404).body("Conta de origem não foi encontrada");
+        }
+
+        if (destinoOptional.isEmpty()){
+            return ResponseEntity.status(404).body("Conta de destino não foi encontrada");
+        }
+
+        ContaBancaria contaOrigem = origemOptional.get();
+        ContaBancaria contaDestino = destinoOptional.get();
+
+        //Validar se a conta de origem possui saldo suficiente
+        if (valor.compareTo(contaOrigem.getSaldo())>0){
+            return ResponseEntity.status(400).body("Saldo insuficiente na conta de origem");
+        }
+
+        //Atualizaçãp dos saldos
+        contaOrigem.setSaldo(contaOrigem.getSaldo().subtract(valor));
+        contaDestino.setSaldo(contaDestino.getSaldo().add(valor));
+
+        contaBancariaRepository.save(contaOrigem);
+        contaBancariaRepository.save(contaDestino);
+
+        //Registrando a transação de origem/saida
+        Transacao transacaoOrigem = new Transacao();
+        transacaoOrigem.setTipoTransacao(TipoTransacao.TRANSFERENCIA_ENVIADA);
+        transacaoOrigem.setValor(valor);
+        transacaoOrigem.setDataHora(LocalDateTime.now());
+        transacaoOrigem.setConta(contaOrigem);
+        transacaoOrigem.setContaRelacionada(contaDestino);
+        transacaoRepository.save(transacaoOrigem);
+
+        //Registrando a transação de destino/entrada
+        Transacao transacaoDestino = new Transacao();
+        transacaoDestino.setTipoTransacao(TipoTransacao.TRANSFERENCIA_RECEBIDA);
+        transacaoDestino.setValor(valor);
+        transacaoDestino.setDataHora(LocalDateTime.now());
+        transacaoDestino.setConta(contaDestino);
+        transacaoDestino.setContaRelacionada(contaOrigem);
+        transacaoRepository.save(transacaoDestino);
+
+        return ResponseEntity.ok("Transferencia realizada com sucesso");
+
     }
 }

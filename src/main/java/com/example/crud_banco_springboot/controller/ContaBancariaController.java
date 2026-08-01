@@ -54,8 +54,19 @@ public class ContaBancariaController {
     }
 
     //Rota de Listagem
-    @GetMapping
-    public List<ContaBancaria> listar(){
-        return repository.findAll();
+    @GetMapping({"","/{id}"})
+    public ResponseEntity<?> listarOuBuscarContaPorId(@PathVariable (required = false) Long id) {
+
+        if (id == null){
+            return ResponseEntity.ok(repository.findAll());
+        }
+
+        Optional<ContaBancaria> contaOptional = repository.findById(id);
+
+        if (contaOptional.isEmpty()){
+            return ResponseEntity.status(404).body("Conta não encontrado");
+        }
+
+        return ResponseEntity.ok(contaOptional.get());
     }
 }

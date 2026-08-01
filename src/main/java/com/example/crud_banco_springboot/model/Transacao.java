@@ -24,6 +24,10 @@ public class Transacao {
     @JoinColumn(name = "conta_id")
     private ContaBancaria conta;
 
+    @ManyToOne
+    @JoinColumn(name = "conta_relacionada_id")
+    private ContaBancaria contaRelacionada;
+
     public Long getId() {return id;}
     public void setId(Long id) {this.id = id;}
 
@@ -38,4 +42,7 @@ public class Transacao {
 
     public ContaBancaria getConta() {return conta;}
     public void setConta(ContaBancaria conta) {this.conta = conta;}
+
+    public ContaBancaria getContaRelacionada() {return contaRelacionada;}
+    public void setContaRelacionada(ContaBancaria contaRelacionada) {this.contaRelacionada = contaRelacionada;}
 }
