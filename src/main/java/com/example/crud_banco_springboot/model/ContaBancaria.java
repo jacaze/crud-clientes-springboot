@@ -22,7 +22,7 @@ public class ContaBancaria {
 
     @ManyToOne
     @JoinColumn(name = "cliente_id")
-    @JsonIgnoreProperties({"endereco", "cpf", "telefone"})
+    @JsonIgnoreProperties({"endereco", "cpf", "telefone","contas"})
     private Cliente cliente;
 
     public ContaBancaria() {
