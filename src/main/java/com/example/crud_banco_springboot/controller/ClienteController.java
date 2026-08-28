@@ -75,7 +75,7 @@ public class ClienteController {
             if (enderecoEnviado.getLogradouro() != null && !enderecoEnviado.getLogradouro().isBlank()) {
                 enderecoDoBanco.setLogradouro(enderecoEnviado.getLogradouro());
             }
-            if (enderecoEnviado.getNumero() != 0) {
+            if (enderecoEnviado.getNumero() != null && enderecoEnviado.getNumero() != 0) {
                 enderecoDoBanco.setNumero(enderecoEnviado.getNumero());
             }
             if (enderecoEnviado.getCep() != null && !enderecoEnviado.getCep().isBlank()) {

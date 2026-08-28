@@ -19,7 +19,7 @@ public class Endereco {
     public Endereco() {
     }
 
-    public Endereco(Long id, String logradouro, int numero, String bairro, String cep, String municipio) {
+    public Endereco(Long id, String logradouro, Integer numero, String bairro, String cep, String municipio) {
         this.id = id;
         this.logradouro = logradouro;
         this.numero = numero;
@@ -34,8 +34,8 @@ public class Endereco {
     public String getLogradouro() {return logradouro;}
     public void setLogradouro(String logradouro) {this.logradouro = logradouro;}
 
-    public int getNumero() {return numero;}
-    public void setNumero(int numero) {this.numero = numero;}
+    public Integer getNumero() {return numero;}
+    public void setNumero(Integer numero) {this.numero = numero;}
 
     public String getBairro() {return bairro;}
     public void setBairro(String bairro) {this.bairro = bairro;}
