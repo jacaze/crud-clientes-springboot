@@ -124,4 +124,46 @@ public class ClienteControllerTest {
         assertEquals("Rua nova", clienteSalvo.getEndereco().getLogradouro());
         verify(repository, times(1)).save(clienteBanco);
     }
+
+    @Test
+    @DisplayName("Deve retornar 404 ao tentar atualizar cliente inexistente")
+    void deveRetornar404AoAtualizarClienteInexistente(){
+        Long id = 99L;
+        when(repository.findById(id)).thenReturn(Optional.empty());
+
+        ResponseEntity<?> resposta = clienteController.atualizarParcial(id,new Cliente());
+
+        assertEquals(404,resposta.getStatusCode().value());
+        assertEquals("Erro: Cliente com o ID "+id+" não possui cadastro", resposta.getBody());
+        verify(repository, never()).save(any());
+    }
+
+    //Deletar
+    @Test
+    @DisplayName("Deve deletar o cliente com sucesso")
+    void deveDeletarClienteComSucesso(){
+        Long id = 1L;
+        Cliente cliente = new Cliente();
+
+        when(repository.findById(id)).thenReturn(Optional.of(cliente));
+
+        ResponseEntity<?> resposta = clienteController.deletarCliente(id);
+
+        assertEquals(200, resposta.getStatusCode().value());
+        assertEquals("Cliente, endereço e contas báncarias excluidos com sucesso", resposta.getBody());
+        verify(repository, times(1)).deleteById(id);
+    }
+
+    @Test
+    @DisplayName("Deve retornar 404 ao tentar deletar cliente inexistente")
+    void deveRetornar404AoDeletarClienteInexistente(){
+        Long id = 99L;
+        when(repository.findById(id)).thenReturn(Optional.empty());
+
+        ResponseEntity<?> resposta = clienteController.deletarCliente(id);
+
+        assertEquals(404, resposta.getStatusCode().value());
+        assertEquals("Erro: Cliente com ID: "+id+" não possui cadastro no banco", resposta.getBody());
+        verify(repository, never()).save(any());
+    }
 }
