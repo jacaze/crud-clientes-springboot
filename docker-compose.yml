@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres-banco
+    environment:
+      POSTGRES_DB: crud_banco
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 0509
+    ports:
+      - "5432:5432"
