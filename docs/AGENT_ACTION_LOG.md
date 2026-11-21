@@ -40,5 +40,18 @@ Este arquivo registra todas as tarefas e implementações realizadas pelos agent
   - `SecurityHeadersFilterTest` (1 teste): validação da injeção de todos os headers de segurança OWASP.
   - `CorsConfigTest` (1 teste): validação do registro e mapeamento de origens autorizadas.
   - Suíte total do projeto: 31 testes executados e 100% aprovados.
+- **Pull Request:** [PR #1](https://github.com/jacaze/crud-clientes-springboot/pull/1)
+- **Status:** Merged.
+
+### [2026-11-21] - Blindagem e Validação de Transações Financeiras (DTOs + Bean Validation + Exception Handler)
+- **Branch:** `feature/dto-validation-transacoes`
+- **Tipo:** `feat`
+- **Descrição:** Substituição de `Map<String, Object>` e `Map<String, BigDecimal>` nos endpoints de depósito, saque e transferência por DTOs fortemente tipados (`TransacaoValorDTO` e `TransferenciaRequestDTO`) com Bean Validation (`@NotNull`, `@Positive`) e validação defensiva em profundidade contra valores negativos, nulos ou zero. Adição de `@Transactional` em depósito e saque para atomicidade, e criação do `GlobalExceptionHandler` (`@RestControllerAdvice`) para formatação limpa de erros HTTP 400 sem vazamento de stack traces.
+- **Itens de Segurança Tratados:** SEC-04 (Validação de Entrada & Zero Trust) e SEC-08 (Prevenção de Vazamento de Stack Traces).
+- **Testes Implementados/Executados:**
+  - `TransacaoControllerTest` (15 testes): cenários de sucesso e bloqueio de depósito/saque/transferência com valores negativos, zero ou campos nulos.
+  - `TransacaoDtoValidationTest` (4 testes): validação das constraints `@NotNull` e `@Positive` via `jakarta.validation.Validator`.
+  - `GlobalExceptionHandlerTest` (2 testes): formatação de erros `MethodArgumentNotValidException` e `HttpMessageNotReadableException`.
+  - Suíte total do projeto: 40 testes executados e 100% aprovados.
 - **Pull Request:** Submetido via GitHub CLI para aprovação do usuário.
 - **Status:** Em Revisão.
