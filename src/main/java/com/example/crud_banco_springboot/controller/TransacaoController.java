@@ -1,11 +1,14 @@
 package com.example.crud_banco_springboot.controller;
 
+import com.example.crud_banco_springboot.dto.TransacaoValorDTO;
+import com.example.crud_banco_springboot.dto.TransferenciaRequestDTO;
 import com.example.crud_banco_springboot.model.ContaBancaria;
 import com.example.crud_banco_springboot.model.TipoTransacao;
 import com.example.crud_banco_springboot.model.Transacao;
 import com.example.crud_banco_springboot.repository.ContaBancariaRepository;
 import com.example.crud_banco_springboot.repository.TransacaoRepository;
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -13,8 +16,6 @@ import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 
 @RestController
@@ -28,14 +29,13 @@ public class TransacaoController {
     private TransacaoRepository transacaoRepository;
 
     @GetMapping
-    public List<Transacao> listarTodas(){
+    public List<Transacao> listarTodas() {
         return transacaoRepository.findAll();
     }
 
     @GetMapping("/conta/{id}")
-    public ResponseEntity<?> listarContaPorId(@PathVariable Long id){
-       //Verificar se a conta existe
-        if (!contaBancariaRepository.existsById(id)){
+    public ResponseEntity<?> listarContaPorId(@PathVariable Long id) {
+        if (!contaBancariaRepository.existsById(id)) {
             return ResponseEntity.status(404).body("Conta não encontrada");
         }
 
@@ -44,31 +44,26 @@ public class TransacaoController {
     }
 
     @PostMapping("/deposito/{id}")
-    public ResponseEntity<?> depositar(@PathVariable Long id, @RequestBody Map<String, BigDecimal> payload){
-
-        //pegando o valor do deposito dento do payload
-        BigDecimal valor = payload.get("valor");
-
-        //buscando se a conta informado existe
-        Optional<ContaBancaria> contaBancariaOptional = contaBancariaRepository.findById(id);
-
-        if (contaBancariaOptional.isEmpty()){
-            return  ResponseEntity.status(404).body("Conta não encontrada");
+    @Transactional
+    public ResponseEntity<?> depositar(@PathVariable Long id, @Valid @RequestBody TransacaoValorDTO dto) {
+        if (dto == null || dto.valor() == null || dto.valor().compareTo(BigDecimal.ZERO) <= 0) {
+            return ResponseEntity.status(400).body("O valor do depósito deve ser maior que zero");
         }
 
-        // Pegando a conta de dentro do Optional
+        BigDecimal valor = dto.valor();
+
+        Optional<ContaBancaria> contaBancariaOptional = contaBancariaRepository.findById(id);
+
+        if (contaBancariaOptional.isEmpty()) {
+            return ResponseEntity.status(404).body("Conta não encontrada");
+        }
+
         ContaBancaria conta = contaBancariaOptional.get();
-
-        //Calculando o novo saldo (somando o atual com o valor do depósito)
         BigDecimal novoSaldo = conta.getSaldo().add(valor);
-
-        //Atualizando o saldo dentro do objeto da conta
         conta.setSaldo(novoSaldo);
 
-        //Guardando os dados que foram alterados
         contaBancariaRepository.save(conta);
 
-        //Guardando os dados da transacao
         Transacao transacao = new Transacao();
         transacao.setTipoTransacao(TipoTransacao.DEPOSITO);
         transacao.setValor(valor);
@@ -80,25 +75,24 @@ public class TransacaoController {
     }
 
     @PostMapping("/saque/{id}")
-    public ResponseEntity<?> saque(@PathVariable Long id, @RequestBody Map<String, BigDecimal> payload){
-
-        //pegar o valor de saque do payload
-        BigDecimal valor = payload.get("valor");
-
-        //Verificar se a conta bancaria informada existe
-        Optional<ContaBancaria> contaOptinional = contaBancariaRepository.findById(id);
-
-        if (contaOptinional.isEmpty()){
-            return  ResponseEntity.status(404).body("Conta não encontrada");
+    @Transactional
+    public ResponseEntity<?> saque(@PathVariable Long id, @Valid @RequestBody TransacaoValorDTO dto) {
+        if (dto == null || dto.valor() == null || dto.valor().compareTo(BigDecimal.ZERO) <= 0) {
+            return ResponseEntity.status(400).body("O valor do saque deve ser maior que zero");
         }
 
-        //pegando a conta do optional
-        ContaBancaria conta = contaOptinional.get();
+        BigDecimal valor = dto.valor();
 
-        //Verificar se existe limite
+        Optional<ContaBancaria> contaOptional = contaBancariaRepository.findById(id);
+
+        if (contaOptional.isEmpty()) {
+            return ResponseEntity.status(404).body("Conta não encontrada");
+        }
+
+        ContaBancaria conta = contaOptional.get();
         BigDecimal saldoDisponivel = conta.getSaldo();
 
-        if (valor.compareTo(saldoDisponivel) > 0){
+        if (valor.compareTo(saldoDisponivel) > 0) {
             return ResponseEntity.status(400).body("O valor de saque é maior que o saldo em conta");
         }
 
@@ -107,7 +101,6 @@ public class TransacaoController {
 
         contaBancariaRepository.save(conta);
 
-        //Guardando os dados da transacao
         Transacao transacao = new Transacao();
         transacao.setTipoTransacao(TipoTransacao.SAQUE);
         transacao.setValor(valor);
@@ -120,45 +113,47 @@ public class TransacaoController {
 
     @PostMapping("/transferencia")
     @Transactional
-    public  ResponseEntity<?> transferir(@RequestBody Map<String, Object> payload){
-        //Extraindo os dados do payload
-        Long contaOrigemId = ((Number) payload.get("contaOrigemId")).longValue();
-        Long contaDestinoId = ((Number)payload.get("contaDestinoId")).longValue();
-        BigDecimal valor = new BigDecimal(payload.get("valor").toString());
+    public ResponseEntity<?> transferir(@Valid @RequestBody TransferenciaRequestDTO dto) {
+        if (dto == null || dto.contaOrigemId() == null || dto.contaDestinoId() == null) {
+            return ResponseEntity.status(400).body("As contas de origem e destino são obrigatórias");
+        }
 
-        //Validar de origem e destino são iguais
-        if (contaOrigemId.equals(contaDestinoId)){
+        if (dto.valor() == null || dto.valor().compareTo(BigDecimal.ZERO) <= 0) {
+            return ResponseEntity.status(400).body("O valor da transferência deve ser maior que zero");
+        }
+
+        Long contaOrigemId = dto.contaOrigemId();
+        Long contaDestinoId = dto.contaDestinoId();
+        BigDecimal valor = dto.valor();
+
+        if (contaOrigemId.equals(contaDestinoId)) {
             return ResponseEntity.status(400).body("A conta de origem não pode ser a mesma que a de destino");
         }
 
-        //Buscar as duas contas no banco de dados
         Optional<ContaBancaria> origemOptional = contaBancariaRepository.findById(contaOrigemId);
         Optional<ContaBancaria> destinoOptional = contaBancariaRepository.findById(contaDestinoId);
 
-        if(origemOptional.isEmpty()){
+        if (origemOptional.isEmpty()) {
             return ResponseEntity.status(404).body("Conta de origem não foi encontrada");
         }
 
-        if (destinoOptional.isEmpty()){
+        if (destinoOptional.isEmpty()) {
             return ResponseEntity.status(404).body("Conta de destino não foi encontrada");
         }
 
         ContaBancaria contaOrigem = origemOptional.get();
         ContaBancaria contaDestino = destinoOptional.get();
 
-        //Validar se a conta de origem possui saldo suficiente
-        if (valor.compareTo(contaOrigem.getSaldo())>0){
+        if (valor.compareTo(contaOrigem.getSaldo()) > 0) {
             return ResponseEntity.status(400).body("Saldo insuficiente na conta de origem");
         }
 
-        //Atualizaçãp dos saldos
         contaOrigem.setSaldo(contaOrigem.getSaldo().subtract(valor));
         contaDestino.setSaldo(contaDestino.getSaldo().add(valor));
 
         contaBancariaRepository.save(contaOrigem);
         contaBancariaRepository.save(contaDestino);
 
-        //Registrando a transação de origem/saida
         Transacao transacaoOrigem = new Transacao();
         transacaoOrigem.setTipoTransacao(TipoTransacao.TRANSFERENCIA_ENVIADA);
         transacaoOrigem.setValor(valor);
@@ -167,7 +162,6 @@ public class TransacaoController {
         transacaoOrigem.setContaRelacionada(contaDestino);
         transacaoRepository.save(transacaoOrigem);
 
-        //Registrando a transação de destino/entrada
         Transacao transacaoDestino = new Transacao();
         transacaoDestino.setTipoTransacao(TipoTransacao.TRANSFERENCIA_RECEBIDA);
         transacaoDestino.setValor(valor);
@@ -177,6 +171,5 @@ public class TransacaoController {
         transacaoRepository.save(transacaoDestino);
 
         return ResponseEntity.ok("Transferencia realizada com sucesso");
-
     }
 }

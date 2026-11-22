@@ -1,5 +1,7 @@
 package com.example.crud_banco_springboot.controller;
 
+import com.example.crud_banco_springboot.dto.TransacaoValorDTO;
+import com.example.crud_banco_springboot.dto.TransferenciaRequestDTO;
 import com.example.crud_banco_springboot.model.ContaBancaria;
 import com.example.crud_banco_springboot.model.Transacao;
 import com.example.crud_banco_springboot.repository.ContaBancariaRepository;
@@ -11,17 +13,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
-
 
 @ExtendWith(MockitoExtension.class)
 public class TransacaoControllerTest {
@@ -38,85 +36,86 @@ public class TransacaoControllerTest {
     // ----- Deposito
     @Test
     @DisplayName("Deve realizar o deposito com sucesso quando a conta existir")
-    void deveDepositarComSucesso(){
-        // 1. Arrange - Preparação dos dados
+    void deveDepositarComSucesso() {
         Long contaId = 1L;
 
         ContaBancaria contaSimulada = new ContaBancaria();
         contaSimulada.setId(contaId);
         contaSimulada.setSaldo(new BigDecimal("100.00"));
 
-        //Ensinando o mockito para quando buscarem a conta por id 1, retornar a conta simulada
         when(contaBancariaRepository.findById(contaId)).thenReturn(Optional.of(contaSimulada));
 
-        //Payload de deposito
-        Map<String, BigDecimal> payload = Map.of("valor", new BigDecimal("50.00"));
+        TransacaoValorDTO dto = new TransacaoValorDTO(new BigDecimal("50.00"));
 
-        // 2. Act - Executando o teste
-        ResponseEntity<?> resposta = transacaoController.depositar(contaId,payload);
+        ResponseEntity<?> resposta = transacaoController.depositar(contaId, dto);
 
-        // 3. Assert - Verificação dos resultados
-        assertEquals(200,resposta.getStatusCode().value());
+        assertEquals(200, resposta.getStatusCode().value());
 
         ContaBancaria contaAtualizada = (ContaBancaria) resposta.getBody();
         assertNotNull(contaAtualizada);
-        assertEquals(new BigDecimal("150.00"),contaAtualizada.getSaldo());
+        assertEquals(new BigDecimal("150.00"), contaAtualizada.getSaldo());
 
-        //Verificando se o repositorio chamou o save
         verify(contaBancariaRepository, times(1)).save(contaSimulada);
-        verify(transacaoRepository,times(1)).save(any());
+        verify(transacaoRepository, times(1)).save(any());
     }
 
     @Test
-    @DisplayName("Deve retornar erro 404 ao tentar depositar em um conta inexsitente ")
-    void deveRetornarErroQuandoContaNaoExistir(){
-        // Arrange - preparação dos dados
-        Long contaIdInexsitente = 99L;
+    @DisplayName("Deve retornar erro 404 ao tentar depositar em uma conta inexistente")
+    void deveRetornarErroQuandoContaNaoExistir() {
+        Long contaIdInexistente = 99L;
 
-        //Ensinando o mockito a buscar
-        when(contaBancariaRepository.findById(contaIdInexsitente)).thenReturn(Optional.empty());
+        when(contaBancariaRepository.findById(contaIdInexistente)).thenReturn(Optional.empty());
 
-        //criando o payload
-        Map<String,BigDecimal> payload = Map.of("valor",new BigDecimal("50.00"));
+        TransacaoValorDTO dto = new TransacaoValorDTO(new BigDecimal("50.00"));
 
-        // Act - executando o teste
-        ResponseEntity<?> resposta = transacaoController.depositar(contaIdInexsitente,payload);
+        ResponseEntity<?> resposta = transacaoController.depositar(contaIdInexistente, dto);
 
-        // Assert
-        //Validando se o stats foi reportado
-        assertEquals(404,resposta.getStatusCode().value());
-
-        //Validando se a mensagem de erro retornada no corpo esta correta
+        assertEquals(404, resposta.getStatusCode().value());
         assertEquals("Conta não encontrada", resposta.getBody());
 
-        //Verifica que nenhum salvamento foi feito nos repositorios
         verify(contaBancariaRepository, never()).save(any());
         verify(transacaoRepository, never()).save(any());
-
     }
 
-    //------- Saque
+    @Test
+    @DisplayName("Deve bloquear depósito com valor negativo ou zero (proteção de integridade de saldo)")
+    void deveBloquearDepositoComValorNegativoOuZero() {
+        Long contaId = 1L;
+
+        ResponseEntity<?> respostaNegativa = transacaoController.depositar(contaId, new TransacaoValorDTO(new BigDecimal("-50.00")));
+        ResponseEntity<?> respostaZero = transacaoController.depositar(contaId, new TransacaoValorDTO(BigDecimal.ZERO));
+        ResponseEntity<?> respostaNula = transacaoController.depositar(contaId, new TransacaoValorDTO(null));
+
+        assertEquals(400, respostaNegativa.getStatusCode().value());
+        assertEquals("O valor do depósito deve ser maior que zero", respostaNegativa.getBody());
+
+        assertEquals(400, respostaZero.getStatusCode().value());
+        assertEquals("O valor do depósito deve ser maior que zero", respostaZero.getBody());
+
+        assertEquals(400, respostaNula.getStatusCode().value());
+
+        verify(contaBancariaRepository, never()).findById(any());
+        verify(contaBancariaRepository, never()).save(any());
+        verify(transacaoRepository, never()).save(any());
+    }
+
+    // ------- Saque
     @Test
     @DisplayName("Deve realizar saque com sucesso quando houver saldo suficiente")
-    void deveSacarComSucesso(){
-        //Arrange
+    void deveSacarComSucesso() {
         Long contaId = 1L;
 
         ContaBancaria contaSimulada = new ContaBancaria();
         contaSimulada.setId(contaId);
         contaSimulada.setSaldo(new BigDecimal("100.00"));
 
-        //Treinando o mockito para retornar a resposta correta
         when(contaBancariaRepository.findById(contaId)).thenReturn(Optional.of(contaSimulada));
 
-        //payload do saque
-        Map<String, BigDecimal> payload = Map.of("valor", new BigDecimal("40.00"));
+        TransacaoValorDTO dto = new TransacaoValorDTO(new BigDecimal("40.00"));
 
-        // Act
-        ResponseEntity<?> resposta = transacaoController.saque(contaId,payload);
+        ResponseEntity<?> resposta = transacaoController.saque(contaId, dto);
 
-        //Assert
-        assertEquals(200,resposta.getStatusCode().value());
+        assertEquals(200, resposta.getStatusCode().value());
 
         ContaBancaria contaAtualizada = (ContaBancaria) resposta.getBody();
         assertNotNull(contaAtualizada);
@@ -128,8 +127,7 @@ public class TransacaoControllerTest {
 
     @Test
     @DisplayName("Deve recusar saque quando o saldo for insuficiente")
-    void deveBarrarQuandoSaldoInsuficiente(){
-        //Arrange
+    void deveBarrarQuandoSaldoInsuficiente() {
         Long contaId = 1L;
 
         ContaBancaria contaSimulada = new ContaBancaria();
@@ -138,50 +136,59 @@ public class TransacaoControllerTest {
 
         when(contaBancariaRepository.findById(contaId)).thenReturn(Optional.of(contaSimulada));
 
-        //Tentando sacar R$ 50.00 tendo apenas R$ 20.00
-        Map<String, BigDecimal> payload = Map.of("valor",new BigDecimal("50.00"));
+        TransacaoValorDTO dto = new TransacaoValorDTO(new BigDecimal("50.00"));
 
-        //ACT
-        ResponseEntity<?> resposta = transacaoController.saque(contaId,payload);
+        ResponseEntity<?> resposta = transacaoController.saque(contaId, dto);
 
-        //Assert
         assertEquals(400, resposta.getStatusCode().value());
         assertEquals("O valor de saque é maior que o saldo em conta", resposta.getBody());
-
-        //Garante que o saldo permeceu sem ser alterado
         assertEquals(new BigDecimal("20.00"), contaSimulada.getSaldo());
 
-        //Verifica que nenhuma ação goi gravada nos repositórios
         verify(contaBancariaRepository, never()).save(any());
         verify(transacaoRepository, never()).save(any());
     }
 
     @Test
     @DisplayName("Deve retornar erro 404 ao tentar sacar em uma conta inexistente")
-    void deveRetornarErroAoSacarContaInexistente(){
-        //Arrange
+    void deveRetornarErroAoSacarContaInexistente() {
         Long contaIdInexistente = 99L;
 
         when(contaBancariaRepository.findById(contaIdInexistente)).thenReturn(Optional.empty());
 
-        Map<String,BigDecimal> payload = Map.of("valor", new BigDecimal("50.00"));
+        TransacaoValorDTO dto = new TransacaoValorDTO(new BigDecimal("50.00"));
 
-        //ACT
-        ResponseEntity<?> resposta = transacaoController.saque(contaIdInexistente,payload);
+        ResponseEntity<?> resposta = transacaoController.saque(contaIdInexistente, dto);
 
-        //ASSERT
-        assertEquals(404,resposta.getStatusCode().value());
-        assertEquals("Conta não encontrada",resposta.getBody());
+        assertEquals(404, resposta.getStatusCode().value());
+        assertEquals("Conta não encontrada", resposta.getBody());
 
         verify(contaBancariaRepository, never()).save(any());
         verify(transacaoRepository, never()).save(any());
     }
 
-    //------ Transferência
+    @Test
+    @DisplayName("Deve bloquear saque com valor negativo ou zero (prevenção de adição fraudulenta de saldo)")
+    void deveBloquearSaqueComValorNegativoOuZero() {
+        Long contaId = 1L;
+
+        ResponseEntity<?> respostaNegativa = transacaoController.saque(contaId, new TransacaoValorDTO(new BigDecimal("-100.00")));
+        ResponseEntity<?> respostaZero = transacaoController.saque(contaId, new TransacaoValorDTO(BigDecimal.ZERO));
+
+        assertEquals(400, respostaNegativa.getStatusCode().value());
+        assertEquals("O valor do saque deve ser maior que zero", respostaNegativa.getBody());
+
+        assertEquals(400, respostaZero.getStatusCode().value());
+        assertEquals("O valor do saque deve ser maior que zero", respostaZero.getBody());
+
+        verify(contaBancariaRepository, never()).findById(any());
+        verify(contaBancariaRepository, never()).save(any());
+        verify(transacaoRepository, never()).save(any());
+    }
+
+    // ------ Transferência
     @Test
     @DisplayName("Deve transferir com sucesso")
-    void deveTransferirComSucesso(){
-        //Arrange
+    void deveTransferirComSucesso() {
         Long idOrigem = 1L;
         Long idDestino = 2L;
 
@@ -196,16 +203,10 @@ public class TransacaoControllerTest {
         when(contaBancariaRepository.findById(idOrigem)).thenReturn(Optional.of(contaOrigem));
         when(contaBancariaRepository.findById(idDestino)).thenReturn(Optional.of(contaDestino));
 
-        Map<String, Object> payload = Map.of(
-                "contaOrigemId",idOrigem,
-                "contaDestinoId", idDestino,
-                "valor", new BigDecimal("100.00")
-        );
+        TransferenciaRequestDTO dto = new TransferenciaRequestDTO(idOrigem, idDestino, new BigDecimal("100.00"));
 
-        //ACT
-        ResponseEntity<?> resposta = transacaoController.transferir(payload);
+        ResponseEntity<?> resposta = transacaoController.transferir(dto);
 
-        //Assert
         assertEquals(200, resposta.getStatusCode().value());
         assertEquals(new BigDecimal("100.00"), contaOrigem.getSaldo());
         assertEquals(new BigDecimal("150.00"), contaDestino.getSaldo());
@@ -217,8 +218,7 @@ public class TransacaoControllerTest {
 
     @Test
     @DisplayName("Deve retornar 404 quando a conta de destino não existir")
-    void deveBarrarTransferenciaContaDestinoInexistente(){
-        //Arrange
+    void deveBarrarTransferenciaContaDestinoInexistente() {
         Long idOrigem = 1L;
         Long idDestinoInexistente = 99L;
 
@@ -229,16 +229,10 @@ public class TransacaoControllerTest {
         when(contaBancariaRepository.findById(idOrigem)).thenReturn(Optional.of(contaOrigem));
         when(contaBancariaRepository.findById(idDestinoInexistente)).thenReturn(Optional.empty());
 
-        Map<String, Object> payload = Map.of(
-                "contaOrigemId",idOrigem,
-                "contaDestinoId", idDestinoInexistente,
-                "valor", new BigDecimal("100.00")
-        );
-        
-        //ACT 
-        ResponseEntity<?> resposta = transacaoController.transferir(payload);
-        
-        //Assert 
+        TransferenciaRequestDTO dto = new TransferenciaRequestDTO(idOrigem, idDestinoInexistente, new BigDecimal("100.00"));
+
+        ResponseEntity<?> resposta = transacaoController.transferir(dto);
+
         assertEquals(404, resposta.getStatusCode().value());
         assertEquals("Conta de destino não foi encontrada", resposta.getBody());
 
@@ -248,8 +242,7 @@ public class TransacaoControllerTest {
 
     @Test
     @DisplayName("Deve retornar 404 quando a conta de origem não existir")
-    void deveBarrarTransferenciaContaOrigemInexistente(){
-        //Arrange
+    void deveBarrarTransferenciaContaOrigemInexistente() {
         Long idOrigemInexistente = 99L;
         Long idDestino = 1L;
 
@@ -260,28 +253,20 @@ public class TransacaoControllerTest {
         when(contaBancariaRepository.findById(idOrigemInexistente)).thenReturn(Optional.empty());
         when(contaBancariaRepository.findById(idDestino)).thenReturn(Optional.of(contaDestino));
 
-        Map<String, Object> payload = Map.of(
-                "contaOrigemId",idOrigemInexistente,
-                "contaDestinoId", idDestino,
-                "valor", new BigDecimal("100.00")
-        );
+        TransferenciaRequestDTO dto = new TransferenciaRequestDTO(idOrigemInexistente, idDestino, new BigDecimal("100.00"));
 
-        //ACT
-        ResponseEntity<?> resposta = transacaoController.transferir(payload);
+        ResponseEntity<?> resposta = transacaoController.transferir(dto);
 
-        //Assert
-        assertEquals(404,resposta.getStatusCode().value());
+        assertEquals(404, resposta.getStatusCode().value());
         assertEquals("Conta de origem não foi encontrada", resposta.getBody());
 
         verify(contaBancariaRepository, never()).save(any());
         verify(transacaoRepository, never()).save(any());
-
     }
 
     @Test
     @DisplayName("Deve recusar transferência quando a conta de origem não tiver saldo suficiente")
-    void deveBarrarTransferenciaComSaldoInsuficiente(){
-        // Arrange
+    void deveBarrarTransferenciaComSaldoInsuficiente() {
         Long idOrigem = 1L;
         Long idDestino = 2L;
 
@@ -296,24 +281,43 @@ public class TransacaoControllerTest {
         when(contaBancariaRepository.findById(idOrigem)).thenReturn(Optional.of(contaOrigem));
         when(contaBancariaRepository.findById(idDestino)).thenReturn(Optional.of(contaDestino));
 
-        Map<String, Object> payload = Map.of(
-            "contaOrigemId", idOrigem,
-            "contaDestinoId", idDestino,
-            "valor", new BigDecimal("100.00")
-        );
+        TransferenciaRequestDTO dto = new TransferenciaRequestDTO(idOrigem, idDestino, new BigDecimal("100.00"));
 
-        // ACT
-        ResponseEntity<?> resposta = transacaoController.transferir(payload);
+        ResponseEntity<?> resposta = transacaoController.transferir(dto);
 
-        //Assert
         assertEquals(400, resposta.getStatusCode().value());
         assertEquals("Saldo insuficiente na conta de origem", resposta.getBody());
 
-        //Garante que os saldos não foram alterados
         assertEquals(new BigDecimal("20.00"), contaOrigem.getSaldo());
         assertEquals(new BigDecimal("40.00"), contaDestino.getSaldo());
 
-        //Garante que nada foi salvo no banco de dados
+        verify(contaBancariaRepository, never()).save(any());
+        verify(transacaoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Deve bloquear transferência com valor negativo, zero ou contas iguais")
+    void deveBloquearTransferenciaInvalidaOuComValorNegativo() {
+        ResponseEntity<?> mesmaConta = transacaoController.transferir(
+                new TransferenciaRequestDTO(1L, 1L, new BigDecimal("50.00")));
+        assertEquals(400, mesmaConta.getStatusCode().value());
+        assertEquals("A conta de origem não pode ser a mesma que a de destino", mesmaConta.getBody());
+
+        ResponseEntity<?> valorNegativo = transacaoController.transferir(
+                new TransferenciaRequestDTO(1L, 2L, new BigDecimal("-100.00")));
+        assertEquals(400, valorNegativo.getStatusCode().value());
+        assertEquals("O valor da transferência deve ser maior que zero", valorNegativo.getBody());
+
+        ResponseEntity<?> valorZero = transacaoController.transferir(
+                new TransferenciaRequestDTO(1L, 2L, BigDecimal.ZERO));
+        assertEquals(400, valorZero.getStatusCode().value());
+        assertEquals("O valor da transferência deve ser maior que zero", valorZero.getBody());
+
+        ResponseEntity<?> contasNulas = transacaoController.transferir(
+                new TransferenciaRequestDTO(null, 2L, new BigDecimal("50.00")));
+        assertEquals(400, contasNulas.getStatusCode().value());
+        assertEquals("As contas de origem e destino são obrigatórias", contasNulas.getBody());
+
         verify(contaBancariaRepository, never()).save(any());
         verify(transacaoRepository, never()).save(any());
     }
@@ -321,14 +325,11 @@ public class TransacaoControllerTest {
     @Test
     @DisplayName("Deve listar todas as transações com sucesso (GET sem ID)")
     void deveListarTodasAsTransacoes() {
-        // --- 1. ARRANGE ---
         List<Transacao> listaSimulada = List.of(new Transacao(), new Transacao());
         when(transacaoRepository.findAll()).thenReturn(listaSimulada);
 
-        // --- 2. ACT ---
         List<Transacao> listaRetornada = transacaoController.listarTodas();
 
-        // --- 3. ASSERT ---
         assertNotNull(listaRetornada);
         assertEquals(2, listaRetornada.size());
     }
@@ -336,21 +337,15 @@ public class TransacaoControllerTest {
     @Test
     @DisplayName("Deve buscar transação por ID com sucesso (GET com ID)")
     void deveBuscarTransacaoPorIdComSucesso() {
-        //ARRANGE
         Long contaId = 1L;
         Transacao transacaoSimulada = new Transacao();
         transacaoSimulada.setId(100L);
 
-        // Mock faz a verificação de existência da conta
         when(contaBancariaRepository.existsById(contaId)).thenReturn(true);
-
-        // Mock faz busca das transações pelo ID da conta
         when(transacaoRepository.findByContaId(contaId)).thenReturn(List.of(transacaoSimulada));
 
-        //ACT
         ResponseEntity<?> resposta = transacaoController.listarContaPorId(contaId);
 
-        //ASSERT
         assertEquals(200, resposta.getStatusCode().value());
 
         List<?> extrato = (List<?>) resposta.getBody();
@@ -361,17 +356,13 @@ public class TransacaoControllerTest {
     @Test
     @DisplayName("Deve retornar 404 ao buscar transação por ID inexistente")
     void deveRetornar404AoBuscarTransacaoInexistente() {
-        //ARRANGE
         Long contaIdInexistente = 99L;
 
         when(contaBancariaRepository.existsById(contaIdInexistente)).thenReturn(false);
 
-        //ACT
         ResponseEntity<?> resposta = transacaoController.listarContaPorId(contaIdInexistente);
 
-        //ASSERT
         assertEquals(404, resposta.getStatusCode().value());
         assertEquals("Conta não encontrada", resposta.getBody());
     }
 }
-
